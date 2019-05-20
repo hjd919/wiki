@@ -1,0 +1,120 @@
+# lnmp nginx mysql php
+nginx:
+  build: ./nginx
+  ports:
+    - "80:80"
+    - "443:443"
+  net: "host"
+  volumes:
+    # 项目目录映射
+    - ./app:/var/www/html
+    # nginx configs
+    - ./nginx/etc:/etc/nginx
+    # 错误日志
+    - ./nginx/logs:/var/log/nginx
+  restart: always
+
+wxgame_go:
+  build: ./go
+  working_dir: /wxgame_go
+  ports:
+    - "3653:3653"
+  restart: always
+  volumes:
+    - /root/wxgame_go:/wxgame_go
+  links:
+    - mysql:mysql
+    - redis:__DOCKER_REDIS__
+  entrypoint:
+    - ./server
+
+# database
+mysql:
+  build: ./mysql
+  ports:
+    - "33066:3306"
+  volumes:
+    - ./mysql/datadir:/var/lib/mysql
+    # 日志
+    - ./mysql/logs:/var/log/mysql
+    # config
+    - ./mysql/conf.d:/etc/mysql/conf.d
+  restart: always
+  environment:
+    - MYSQL_ROOT_PASSWORD=Hjd123!@#
+
+# fpm php
+fpm:
+  build: ./php-fpm
+  ports:
+    - "9000:9000"
+  volumes:
+    # 项目目录映射
+    - ./app:/var/www/html
+    # config
+    - ./php-fpm/etc/php.ini-production:/usr/local/etc/php/php.ini:ro
+    - ./php-fpm/etc/php-fpm.d:/usr/local/etc/php-fpm.d:ro
+    - ./php-fpm/logs:/usr/local/var/log
+  restart: always
+  links:
+    - mysql:mysql
+    - redis:__DOCKER_REDIS__
+
+#redis
+redis:
+  image: redis
+  volumes:
+    - ./redis/datadir:/data
+    - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+  ports:
+    - "6379:6379"
+  restart: always
+  entrypoint:
+    - redis-server
+    - /usr/local/etc/redis/redis.conf
+
+wss:
+  build: ./php-cli
+  ports:
+    - "9501:9501"
+  volumes:
+    # 项目目录映射
+    - ./app:/var/www/html
+    # config
+    - ./php-fpm/etc/php.ini-production:/usr/local/etc/php/php.ini:ro
+    - ./php-fpm/etc/php-fpm.d:/usr/local/etc/php-fpm.d:ro
+    - ./php-fpm/logs:/usr/local/var/log
+  links:
+    - mysql:mysql
+    - redis:__DOCKER_REDIS__
+  restart: always
+  working_dir: /var/www/html
+  entrypoint:
+    - php
+    - wxgame/api/artisan
+    - start:wss
+
+# wxgame:
+#  build: ./swoole
+#  ports:
+#    - "9502:9502"
+#   # - "9502:9502"
+#  volumes:
+#    # 项目目录映射
+#    - ./app/dev_wxgame/swoft:/app
+#    # config
+#    - ./php-fpm/etc/php.ini-production:/usr/local/etc/php/php.ini:ro
+#    - ./php-fpm/etc/php-fpm.d:/usr/local/etc/php-fpm.d:ro
+#    - ./php-fpm/logs:/usr/local/var/log
+#  environment:
+#    - TEST_ENV=hujiande
+#  links:
+#    - mysql:mysql
+#    - redis:__DOCKER_REDIS__
+#  working_dir: /app
+#  entrypoint:
+#    #- php
+#    #- index.php
+#    - tail
+#    - -f
+#    - /dev/null
